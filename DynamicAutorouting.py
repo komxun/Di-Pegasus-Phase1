@@ -7,6 +7,107 @@ Created on Fri May  3 14:28:46 2024
 import numpy as np
 import math
 
+##############################################################################
+
+def Setting(num=1):
+    """
+    Initialize neccessary parameters for the Dynamic Autorouting program
+
+    Args:
+        num (int, optional): Setting profile number. Defaults to 1.
+
+    Returns:
+        param (dict): Dictionary of parameters.
+    """
+    if num == 1:
+        (x_init, y_init, z_init) = (0, 0, 0)
+        (x_i, y_i, z_i) = (0, -10, 5)
+        (psi_i, gamma_i) = (0, 0)
+        (x_f, y_f, z_f) = (200, 0, 10)
+        
+        param = {
+            'ifds': {
+                'rho0': 2.5, 
+                'sigma0': 0.01, 
+                'sf': 0},
+            'uav' : {
+                'state': np.array([x_i, y_i, z_i, psi_i, gamma_i]),
+                'start location': np.array([x_init, y_init, z_init]),
+                'destin': np.array([x_f, y_f, z_f]),
+                'speed': 10.0},
+            'sim' : {
+                'rt': 1, 
+                'dt': 0.1, 
+                'tsim': 50, 
+                'rtsim': 80, 
+                'scene': 2,
+                'targetThresh': 10,
+                'simMode':2}
+            }
+    elif num == 2: # For PyBullet testing
+        (x_init, y_init, z_init) = (0, 0, 0)
+        (x_i, y_i, z_i) = (0, -2, 0)
+        (psi_i, gamma_i) = (0, 0)
+        (x_f, y_f, z_f) = (10, 0, 1)
+        
+        param = {
+            'ifds': {
+                'rho0': 2.5, 
+                'sigma0': 0.01, 
+                'sf': 0},
+            'uav' : {
+                'state': np.array([x_i, y_i, z_i, psi_i, gamma_i]),
+                'start location': np.array([x_init, y_init, z_init]),
+                'destin': np.array([x_f, y_f, z_f]),
+                'speed': 0.2},
+            'sim' : {
+                'rt': 1, 
+                'dt': 0.1, 
+                'tsim': 50, 
+                'rtsim': 80, 
+                'scene': 3,
+                'targetThresh': 0.5,
+                'simMode':2}
+            }
+    return param
+
+##############################################################################
+
+def Main(setting=1):
+    """
+    Main loop for the Dynamic Autorouting Program: Creating Path and Trajectory
+
+    Args:
+        setting (int, optional): Setting profile number. Default to 1.
+
+    Returns:
+        path (Array 3x_): A 3D path generated from IFDS algorithm.
+        allTraj (Array 3x_): A 3D trajectory generated from CCA3D algorithm.
+        param (dict): A dictionary of various parameters.
+
+    """
+    param = Setting(setting)
+    # Pre-allocation waypoints and paths
+    if param['sim']['simMode'] == 1:
+        # Since total nol of waypoints is fixed in this mode
+        wp = np.zeros((3, param['sim']['tsim'] + 1))
+        wp[:,0:1] = param['uav']['start location'].reshape(3,1)
+    else:
+        wp = param['uav']['start location'].reshape(3,1)
+    
+    # Path Following
+    dtcum = 0
+    v = param['uav']['speed']
+    allTraj = param['uav']['state'][:3].reshape(3,1)
+    for rt in range(param['sim']['rtsim']): 
+        path = IFDS(param, wp)
+        traj = FollowPath(path, param['uav']['state'], v)
+        param['uav']['state'] = traj[:,-1]
+        allTraj = np.append(allTraj, traj[0:3,:], axis=1)
+    return (path, allTraj, param)
+
+##############################################################################
+
 def CreateScene(num, loc, rt):
     """
     Create scenarios with obstacles
@@ -69,6 +170,8 @@ def CreateScene(num, loc, rt):
         Shape("sphere", 12, -1, 0 ,5)
     
     return Obj
+
+###############################################################################
 
 def IFDS(param, wp):
     """
@@ -199,6 +302,7 @@ def IFDS(param, wp):
     Path = np.delete(wp, np.s_[t+1:len(wp)], axis=1)
     return Path        
         
+##############################################################################
 
 def CCA3D(Wi, Wf, uavStates, v):
     """
@@ -315,6 +419,8 @@ def CCA3D(Wi, Wf, uavStates, v):
             break
     updatedState = (x, y, z, psi, gamma, timeSpent)
     return updatedState
+
+##############################################################################
         
 def FollowPath(path, uavStates, v):
     """
