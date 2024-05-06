@@ -63,6 +63,10 @@ def CreateScene(num, loc, rt):
     elif num == 2:
         Shape("cylinder", 60, 5, 0, 50, 50)
         Shape("sphere", 120, -10, 0 ,50)
+    elif num == 3:
+        Shape("sphere", 5, 5, 0, 5)
+        Shape("cylinder", 6, 0, 0, 5, 5)
+        Shape("sphere", 12, -1, 0 ,5)
     
     return Obj
 
@@ -128,7 +132,8 @@ def IFDS(param, wp):
     
             # Calculate Weight
             w = 1
-            w = [w*(Obj[i]['Gamma'] - 1)/((Obj[j]['Gamma'] - 1) + (Obj[i]['Gamma']-1)) for i in range(len(Obj)) if i!=j][0]
+            if len(Obj) > 1:
+                w = [w*(Obj[i]['Gamma'] - 1)/((Obj[j]['Gamma'] - 1) + (Obj[i]['Gamma']-1)) for i in range(len(Obj)) if i!=j][0]
             # Saving into each obstacles
             Obj[j]["w"] = w
             Obj[j]["M"] = M
@@ -177,14 +182,12 @@ def IFDS(param, wp):
     foundPath = 0
     if param["sim"]["simMode"] == 1:
         # Mode 1: Simulate by limiting steps
-        print("IFDS mode 1: generate path with limited steps . . .")
         for t in range(param['sim']['tsim']):
             flagBreak, wp = loop(wp, t)
             if flagBreak:
                 break
     else:
         # Mode 2: Simulate by reaching distance
-        print("IFDS mode 2: generate path until the end. . .")
         t = 0
         while True:
             flagBreak, wp = loop(wp, t)

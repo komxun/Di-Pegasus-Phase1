@@ -11,43 +11,73 @@ import numpy as np
 import matplotlib.pyplot as plt
 from DynamicAutorouting import IFDS, FollowPath
 
+def Setting(num=1):
+    if num == 1:
+        (x_init, y_init, z_init) = (0, 0, 0)
+        (x_i, y_i, z_i) = (0, -10, 5)
+        (psi_i, gamma_i) = (0, 0)
+        (x_f, y_f, z_f) = (200, 0, 10)
+        
+        param = {
+            'ifds': {
+                'rho0': 2.5, 
+                'sigma0': 0.01, 
+                'sf': 0},
+            'uav' : {
+                'state': np.array([x_i, y_i, z_i, psi_i, gamma_i]),
+                'start location': np.array([x_init, y_init, z_init]),
+                'destin': np.array([x_f, y_f, z_f]),
+                'speed': 10.0},
+            'sim' : {
+                'rt': 1, 
+                'dt': 0.1, 
+                'tsim': 50, 
+                'rtsim': 80, 
+                'scene': 2,
+                'targetThresh': 10,
+                'simMode':2}
+            }
+    elif num == 2: # For PyBullet testing
+        (x_init, y_init, z_init) = (0, 0, 0)
+        (x_i, y_i, z_i) = (0, -2, 0)
+        (psi_i, gamma_i) = (0, 0)
+        (x_f, y_f, z_f) = (10, 0, 1)
+        
+        param = {
+            'ifds': {
+                'rho0': 2.5, 
+                'sigma0': 0.01, 
+                'sf': 0},
+            'uav' : {
+                'state': np.array([x_i, y_i, z_i, psi_i, gamma_i]),
+                'start location': np.array([x_init, y_init, z_init]),
+                'destin': np.array([x_f, y_f, z_f]),
+                'speed': 0.2},
+            'sim' : {
+                'rt': 1, 
+                'dt': 0.1, 
+                'tsim': 50, 
+                'rtsim': 80, 
+                'scene': 3,
+                'targetThresh': 0.5,
+                'simMode':2}
+            }
+    return param
+#%%
 def main():
-    (x_init, y_init, z_init) = (0, 0, 0)
-    (x_i, y_i, z_i) = (0, -10, 5)
-    (psi_i, gamma_i) = (0, 0)
-    (x_f, y_f, z_f) = (200, 0, 10)
-    
-    param = {
-        'ifds': {
-            'rho0': 2.5, 
-            'sigma0': 0.01, 
-            'sf': 0},
-        'uav' : {
-            'state': np.array([x_i, y_i, z_i, psi_i, gamma_i]),
-            'start location': np.array([x_init, y_init, z_init]),
-            'destin': np.array([x_f, y_f, z_f]),
-            'speed': 10.0},
-        'sim' : {
-            'rt': 1, 
-            'dt': 0.1, 
-            'tsim': 50, 
-            'rtsim': 80, 
-            'scene': 2,
-            'targetThresh': 10,
-            'simMode':2}
-        }
+    param = Setting(1)
     # Pre-allocation waypoints and paths
     if param['sim']['simMode'] == 1:
         # Since total nol of waypoints is fixed in this mode
         wp = np.zeros((3, param['sim']['tsim'] + 1))
-        wp[:,0:1] = np.array([[x_init], [y_init], [z_init]])
+        wp[:,0:1] = param['uav']['start location'].reshape(3,1)
     else:
-        wp = np.array([[x_init], [y_init], [z_init]])
+        wp = param['uav']['start location'].reshape(3,1)
     
     # Path Following
     dtcum = 0
     v = param['uav']['speed']
-    allTraj = np.array([[x_i], [y_i], [z_i]])
+    allTraj = param['uav']['state'][:3].reshape(3,1)
     for rt in range(param['sim']['rtsim']): 
         path = IFDS(param, wp)
         traj = FollowPath(path, param['uav']['state'], v)
@@ -55,6 +85,7 @@ def main():
         allTraj = np.append(allTraj, traj[0:3,:], axis=1)
     return (path, allTraj, param)
 
+#%%
 path, allTraj, param = main()
     
 #%% Plot
