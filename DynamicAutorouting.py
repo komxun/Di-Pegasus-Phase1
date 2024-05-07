@@ -100,11 +100,15 @@ def Main(setting=1):
     v = param['uav']['speed']
     allTraj = param['uav']['state'][:3].reshape(3,1)
     for rt in range(param['sim']['rtsim']): 
-        path = IFDS(param, wp)
-        traj = FollowPath(path, param['uav']['state'], v)
+        foundPath, path = IFDS(param, wp)
+        
+        if rt == 0 or foundPath == 1:
+            path2Follow = path
+        traj = FollowPath(path2Follow, param['uav']['state'], v)
         param['uav']['state'] = traj[:,-1]
         allTraj = np.append(allTraj, traj[0:3,:], axis=1)
-    return (path, allTraj, param)
+        param['sim']['rt'] += 1
+    return (path2Follow, allTraj, param)
 
 ##############################################################################
 
@@ -125,7 +129,7 @@ def CreateScene(num, loc, rt):
     Obj = []
     
     (X, Y, Z) = loc
-    def Shape(shape, x0, y0, z0, D, h=0):
+    def Shape(isDynamic, shape, x0, y0, z0, D, h=0):
         def CalcGamma():
             Gamma = ((X - x0)/a)**(2*p) + ((Y - y0)/b)**(2*q) + ((Z - z0)/c)**(2*r)
             return Gamma
@@ -153,21 +157,22 @@ def CreateScene(num, loc, rt):
         t = np.array([[dGdy],[-dGdx], [0]])
         origin = np.array([x0, y0, z0])
         # Add a new object to the list
-        Obj.append({'Gamma': Gamma, 'n': n, 't': t, 'origin': origin})
+        dType = "Dynamic" if isDynamic else "Static"
+        Obj.append({'Gamma': Gamma, 'n': n, 't': t, 'origin': origin, 'type': dType})
         # Obj[numObj]['Gamma'] = Gamma 
         # Obj[numObj]['n'] = n
         # Obj[numObj]['t'] = t
     
     numObj = 0
     if   num == 1:
-        Shape("sphere", 50, 5, 0, 50)
+        Shape(0, "sphere", 50, 5, 0, 50)
     elif num == 2:
-        Shape("cylinder", 60, 5, 0, 50, 50)
-        Shape("sphere", 120, -10, 0 ,50)
+        Shape(0, "cylinder", 60, 5, 0, 50, 50)
+        Shape(0, "sphere", 120, -10, 0 ,50)
     elif num == 3:
-        Shape("sphere", 5, 5, 0, 5)
-        Shape("cylinder", 6, 0, 0, 5, 5)
-        Shape("sphere", 12, -1, 0 ,5)
+        Shape(0, "sphere", 5, 5, 0, 5)
+        Shape(0, "cylinder", 6, 0, 0, 5, 5)
+        Shape(0, "sphere", 12, -1, 0 ,5)
     
     return Obj
 
@@ -250,11 +255,25 @@ def IFDS(param, wp):
     
     def loop(wp, t):
         flagBreak = 0
+        flagReturn = 0
+        foundPath = 0
         if t > 1000:
             flagBreak = 1 # break
         loc = wp[:, -1]
+        
+        # Create scenario with obstacles
         Obstacle = CreateScene(scene, loc, rt)
-
+        
+        # Check if all obstacles is static
+        envStatic = all([Obstacle[i]["type"] == "Static" for i in range(len(Obstacle))])
+        
+        if envStatic and rt>1:
+            flagReturn = 1
+            flagBreak = 1
+            foundPath =2
+            return (flagReturn, flagBreak, foundPath, wp)
+            
+        
         if np.linalg.norm(loc - destin) < targetThresh:
             print("Path found at step #" + str(t))
             wp = wp[:, :-1]
@@ -271,7 +290,7 @@ def IFDS(param, wp):
                 wp = np.append(wp, wp[:, -1].reshape(3, 1)+ UBar * dt, axis=1)
             
             
-        return (flagBreak, wp)  
+        return (flagReturn, flagBreak, foundPath, wp)  
         
     # ------------------Start of IFDS: Load Param data -------------------
     rt = param['sim']['rt']
@@ -286,21 +305,25 @@ def IFDS(param, wp):
     if param["sim"]["simMode"] == 1:
         # Mode 1: Simulate by limiting steps
         for t in range(param['sim']['tsim']):
-            flagBreak, wp = loop(wp, t)
+            flagReturn, flagBreak, foundPath, wp = loop(wp, t)
+            if flagReturn:
+                return (foundPath, Path)
             if flagBreak:
                 break
     else:
         # Mode 2: Simulate by reaching distance
         t = 0
         while True:
-            flagBreak, wp = loop(wp, t)
+            flagReturn, flagBreak, foundPath, wp = loop(wp, t)
+            if flagReturn:
+                return (foundPath, Path)
             if flagBreak:
                 break
             t += 1
         
     wp = wp[:, 0:t]
     Path = np.delete(wp, np.s_[t+1:len(wp)], axis=1)
-    return Path        
+    return (foundPath, Path)        
         
 ##############################################################################
 
@@ -456,3 +479,4 @@ def FollowPath(path, uavStates, v):
             trajectory = np.append(trajectory, newState, axis=1)
     return trajectory
         
+##############################################################################
